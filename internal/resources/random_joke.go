@@ -2,8 +2,6 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"math/rand"
 
 	"github.com/strowk/foxy-contexts/pkg/fxctx"
@@ -37,9 +35,7 @@ var jokes = []string{
 	"Good design is invisible. So clients assume you did nothing.",
 }
 
-type jokePayload struct {
-	Joke string `json:"joke"`
-}
+func ptr[T any](v T) *T { return &v }
 
 // NewRandomJokeResource returns a random IT, programming, or design joke.
 func NewRandomJokeResource() fxctx.Resource {
@@ -47,25 +43,18 @@ func NewRandomJokeResource() fxctx.Resource {
 		mcp.Resource{
 			Name:        "random-joke",
 			Uri:         "variant-internal://random-joke",
-			MimeType:    ptr("application/json"),
+			MimeType:    ptr("text/plain"),
 			Description: ptr("A random IT, programming, or design joke to brighten your day"),
 			Annotations: &mcp.ResourceAnnotations{
 				Audience: []mcp.Role{mcp.RoleAssistant, mcp.RoleUser},
 			},
 		},
 		func(_ context.Context, uri string) (*mcp.ReadResourceResult, error) {
-			payload := jokePayload{
-				Joke: jokes[rand.Intn(len(jokes))],
-			}
-			raw, err := json.Marshal(payload)
-			if err != nil {
-				return nil, fmt.Errorf("marshal random-joke payload: %w", err)
-			}
 			return &mcp.ReadResourceResult{
 				Contents: []any{
 					mcp.TextResourceContents{
-						MimeType: ptr("application/json"),
-						Text:     string(raw),
+						MimeType: ptr("text/plain"),
+						Text:     jokes[rand.Intn(len(jokes))],
 						Uri:      uri,
 					},
 				},
