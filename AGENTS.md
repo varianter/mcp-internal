@@ -131,6 +131,7 @@ All config comes from environment variables. See `internal/config/config.go`.
 | `HOST` | `0.0.0.0` | Use `127.0.0.1` locally — **must** be `0.0.0.0` in AKS |
 | `PORT` | `8080` | |
 | `MCP_PATH` | `/mcp` | |
+| `HEALTH_PORT` | `8081` | Liveness/readiness probe port — responds 200 OK to any request |
 | `AZURE_TENANT_ID` | — | Set in `k8s/configmap.yaml` |
 | `AZURE_CLIENT_ID` | — | Injected automatically by AKS Workload Identity webhook |
 | `AZURE_FEDERATED_TOKEN_FILE` | — | Injected automatically by AKS Workload Identity webhook |
@@ -168,7 +169,7 @@ Uses `pkg/streamable_http` (Foxy Contexts v0.1.0-beta.6). This is an HTTP transp
 
 oauth2-proxy sits in front in AKS. Ensure it does not strip `Mcp-Session-Id` headers, which the transport uses to maintain session state across requests.
 
-There is no `/healthz` endpoint. AKS probes use TCP socket checks on port 8080.
+A dedicated health server runs on port `8081` (configurable via `HEALTH_PORT`). It responds `200 OK` to any request. AKS liveness/readiness probes should target this port.
 
 ---
 
@@ -206,4 +207,4 @@ The Dockerfile uses `gcr.io/distroless/static:nonroot` (uid 65532, no shell). Th
 - **Dependency injection**: The library uses Uber `fx`. Resource/tool/prompt constructors are passed as function references (not called instances) to `.WithResource()` etc. `fx` calls them and resolves dependencies. If a constructor needs config, add it as a parameter and provide `*Config` via `.WithFxOptions(fx.Provide(...))`.
 - **`fx` logging**: The library logs all DI wiring at startup to stdout. This is normal.
 - **Beta version**: `v0.1.0-beta.6` is intentional — it's the only release with `pkg/streamable_http`. Monitor the repo for a stable release.
-- **No `/healthz`**: Adding one requires injecting a middleware into the internal Echo instance via `WithFxOptions`. Not worth the complexity unless the TCP probe proves insufficient.
+- **Health server**: A separate `net/http` server on port `8081` handles liveness/readiness probes. It runs as an `fx.Hook` alongside the main app lifecycle. The foxy-contexts Echo instance is private, so health checks cannot be added to port 8080.

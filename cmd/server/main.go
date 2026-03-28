@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,8 +37,33 @@ func main() {
 
 	slog.Info("starting server", "host", cfg.Host, "port", cfg.Port, "path", cfg.MCPPath)
 
+	healthServer := &http.Server{
+		Addr: fmt.Sprintf(":%d", cfg.HealthPort),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	}
+
 	err = app.NewBuilder().
-		WithFxOptions(fx.Provide(func() *secrets.Loader { return secretLoader })).
+		WithFxOptions(
+			fx.Provide(func() *secrets.Loader { return secretLoader }),
+			fx.Invoke(func(lc fx.Lifecycle) {
+				lc.Append(fx.Hook{
+					OnStart: func(ctx context.Context) error {
+						slog.Info("starting health server", "port", cfg.HealthPort)
+						go func() {
+							if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+								slog.Error("health server error", "error", err)
+							}
+						}()
+						return nil
+					},
+					OnStop: func(ctx context.Context) error {
+						return healthServer.Shutdown(ctx)
+					},
+				})
+			}),
+		).
 		WithResource(resources.NewRandomJokeResource).
 		WithTool(tools.NewFlowcaseCVTool).
 		WithName("variant-internal-mcp").
