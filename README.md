@@ -6,14 +6,14 @@ Deployed in AKS behind oauth2-proxy, using Azure Workload Identity (managed iden
 
 ## Tools
 
-| Name | Description | Required secrets |
-|------|-------------|-----------------|
+| Name                    | Description                                                                                                                                                              | Required secrets                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
 | `get-cv-for-consultant` | Fetches a consultant's full CV from FlowCase by name. Returns a Markdown summary with profile, skills, work history, projects, education, certifications, and languages. | `FLOWCASE_API_KEY`, `FLOWCASE_ORG` |
 
 ## Resources
 
-| URI | Description |
-|-----|-------------|
+| URI                              | Description                               |
+| -------------------------------- | ----------------------------------------- |
 | `variant-internal://random-joke` | A random IT, programming, or design joke. |
 
 ## Local development
@@ -47,17 +47,4 @@ For Azure Graph/SharePoint data, use `azidentity.NewDefaultAzureCredential()` â€
 
 ## Deployment
 
-```bash
-make docker-push TAG=<version>
-# Then update the image tag in k8s/deployment.yaml and apply
-kubectl apply -f k8s/
-```
-
-The Workload Identity webhook injects `AZURE_CLIENT_ID` and `AZURE_FEDERATED_TOKEN_FILE` into the pod automatically. Set `AZURE_TENANT_ID` in `k8s/configmap.yaml`.
-
-The `ServiceAccount` `internal-mcp-sa` must be annotated with the managed identity client ID:
-
-```yaml
-annotations:
-  azure.workload.identity/client-id: "<managed-identity-client-id>"
-```
+Run workflow manually to deploy to Variant AKS.
