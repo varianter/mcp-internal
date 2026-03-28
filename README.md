@@ -1,8 +1,20 @@
 # internal-mcp
 
-MCP server exposing Variant internal data (SharePoint, Graph, etc.) via the [Model Context Protocol](https://modelcontextprotocol.io). Built with [Foxy Contexts](https://foxy-contexts.str4.io/).
+MCP server exposing Variant internal data via the [Model Context Protocol](https://modelcontextprotocol.io). Built with [Foxy Contexts](https://foxy-contexts.str4.io/).
 
-Deployed in AKS behind oauth2-proxy, using Azure Workload Identity (managed identity) for Graph/SharePoint access.
+Deployed in AKS behind oauth2-proxy, using Azure Workload Identity (managed identity) for Azure/Graph access.
+
+## Tools
+
+| Name | Description | Required secrets |
+|------|-------------|-----------------|
+| `get-cv-for-consultant` | Fetches a consultant's full CV from FlowCase by name. Returns a Markdown summary with profile, skills, work history, projects, education, certifications, and languages. | `FLOWCASE_API_KEY`, `FLOWCASE_ORG` |
+
+## Resources
+
+| URI | Description |
+|-----|-------------|
+| `variant-internal://random-joke` | A random IT, programming, or design joke. |
 
 ## Local development
 
