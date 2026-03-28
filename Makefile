@@ -6,6 +6,11 @@ IMAGE     := variant-internal-mcp
 TAG       ?= latest
 
 # ── Local dev ──────────────────────────────────────────────────────────────────
+ifneq (,$(wildcard .env))
+  include .env
+  export
+endif
+
 .PHONY: run
 run: ## Run server locally (HOST defaults to 0.0.0.0 via config, override with HOST=127.0.0.1)
 	HOST=127.0.0.1 go run $(CMD)

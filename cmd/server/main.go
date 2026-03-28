@@ -9,14 +9,16 @@ import (
 	"github.com/strowk/foxy-contexts/pkg/app"
 	"github.com/strowk/foxy-contexts/pkg/mcp"
 	"github.com/strowk/foxy-contexts/pkg/streamable_http"
+	"go.uber.org/fx"
 
 	"github.com/varianter/internal-mcp/internal/config"
 	"github.com/varianter/internal-mcp/internal/resources"
 	"github.com/varianter/internal-mcp/internal/secrets"
+	"github.com/varianter/internal-mcp/internal/tools"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	slog.SetDefault(logger)
 
 	cfg, err := config.Load()
@@ -30,16 +32,18 @@ func main() {
 		slog.Error("failed to init secrets loader", "error", err)
 		os.Exit(1)
 	}
-	_ = secretLoader // pass to resources/tools that need secrets
 
 	slog.Info("starting server", "host", cfg.Host, "port", cfg.Port, "path", cfg.MCPPath)
 
 	err = app.NewBuilder().
+		WithFxOptions(fx.Provide(func() *secrets.Loader { return secretLoader })).
 		WithResource(resources.NewRandomJokeResource).
+		WithTool(tools.NewFlowcaseCVTool).
 		WithName("variant-internal-mcp").
 		WithVersion("0.1.0").
 		WithServerCapabilities(&mcp.ServerCapabilities{
 			Resources: &mcp.ServerCapabilitiesResources{},
+			Tools:     &mcp.ServerCapabilitiesTools{},
 		}).
 		WithTransport(
 			streamable_http.NewTransport(
