@@ -17,6 +17,7 @@ type Config struct {
 
 	AzureClientID string // AZURE_CLIENT_ID (set by workload identity webhook in AKS)
 	AzureTenantID string // AZURE_TENANT_ID
+	KeyVaultURL   string // KEYVAULT_URL — set locally only; empty in k8s (secrets injected as env vars)
 }
 
 func Load() (*Config, error) {
@@ -48,5 +49,6 @@ func Load() (*Config, error) {
 		MCPPath:       mcpPath,
 		AzureClientID: os.Getenv("AZURE_CLIENT_ID"),
 		AzureTenantID: os.Getenv("AZURE_TENANT_ID"),
+		KeyVaultURL:   os.Getenv("KEYVAULT_URL"),
 	}, nil
 }

@@ -7,10 +7,12 @@ import (
 	"os"
 
 	"github.com/strowk/foxy-contexts/pkg/app"
+	"github.com/strowk/foxy-contexts/pkg/mcp"
 	"github.com/strowk/foxy-contexts/pkg/streamable_http"
 
 	"github.com/varianter/internal-mcp/internal/config"
 	"github.com/varianter/internal-mcp/internal/resources"
+	"github.com/varianter/internal-mcp/internal/secrets"
 )
 
 func main() {
@@ -23,12 +25,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	secretLoader, err := secrets.New(cfg.KeyVaultURL)
+	if err != nil {
+		slog.Error("failed to init secrets loader", "error", err)
+		os.Exit(1)
+	}
+	_ = secretLoader // pass to resources/tools that need secrets
+
 	slog.Info("starting server", "host", cfg.Host, "port", cfg.Port, "path", cfg.MCPPath)
 
 	err = app.NewBuilder().
-		WithResource(resources.NewHelloWorldResource).
+		WithResource(resources.NewRandomJokeResource).
 		WithName("variant-internal-mcp").
 		WithVersion("0.1.0").
+		WithServerCapabilities(&mcp.ServerCapabilities{
+			Resources: &mcp.ServerCapabilitiesResources{},
+		}).
 		WithTransport(
 			streamable_http.NewTransport(
 				streamable_http.Endpoint{
