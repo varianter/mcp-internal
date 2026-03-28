@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/strowk/foxy-contexts/pkg/fxctx"
 	"github.com/strowk/foxy-contexts/pkg/mcp"
@@ -35,10 +36,10 @@ func NewHelloWorldResource() fxctx.Resource {
 			}
 			raw, err := json.Marshal(payload)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("marshal hello-world payload: %w", err)
 			}
 			return &mcp.ReadResourceResult{
-				Contents: []interface{}{
+				Contents: []any{
 					mcp.TextResourceContents{
 						MimeType: ptr("application/json"),
 						Text:     string(raw),

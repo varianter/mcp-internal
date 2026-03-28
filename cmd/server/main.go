@@ -2,8 +2,9 @@ package main
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/strowk/foxy-contexts/pkg/app"
 	"github.com/strowk/foxy-contexts/pkg/streamable_http"
@@ -13,10 +14,16 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("starting server", "host", cfg.Host, "port", cfg.Port, "path", cfg.MCPPath)
 
 	err = app.NewBuilder().
 		WithResource(resources.NewHelloWorldResource).
@@ -34,6 +41,7 @@ func main() {
 		Run()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server: %v", err)
+		slog.Error("server exited unexpectedly", "error", err)
+		os.Exit(1)
 	}
 }
