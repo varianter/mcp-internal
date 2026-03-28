@@ -390,7 +390,7 @@ func fcDo[T any](ctx context.Context, method, url, authHeader string, body []byt
 	if err != nil {
 		return zero, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -429,12 +429,12 @@ func fcFormatCV(cv fcCV, allHits []fcSearchHit) string {
 		sb.WriteString("  \n")
 	}
 	if cv.BornYear.v != nil {
-		sb.WriteString(fmt.Sprintf("**Born:** %d  \n", *cv.BornYear.v))
+		fmt.Fprintf(&sb, "**Born:** %d  \n", *cv.BornYear.v)
 	}
 
 	if len(allHits) > 1 {
 		sb.WriteString("\n> **Note:** ")
-		sb.WriteString(fmt.Sprintf("%d matches found; showing first result. Other matches: ", len(allHits)))
+		fmt.Fprintf(&sb, "%d matches found; showing first result. Other matches: ", len(allHits))
 		others := make([]string, 0, len(allHits)-1)
 		for _, h := range allHits[1:] {
 			label := h.CV.Name
@@ -624,9 +624,9 @@ func fcFormatCV(cv fcCV, allHits []fcSearchHit) string {
 			}
 			if c.Year.v != nil {
 				if c.Month.v != nil && *c.Month.v >= 1 && *c.Month.v <= 12 {
-					sb.WriteString(fmt.Sprintf("**Date:** %s %d  \n", fcMonthNames[*c.Month.v], *c.Year.v))
+					fmt.Fprintf(&sb, "**Date:** %s %d  \n", fcMonthNames[*c.Month.v], *c.Year.v)
 				} else {
-					sb.WriteString(fmt.Sprintf("**Year:** %d  \n", *c.Year.v))
+					fmt.Fprintf(&sb, "**Year:** %d  \n", *c.Year.v)
 				}
 			}
 			if desc := c.LongDescription.String(); desc != "" {
@@ -652,9 +652,9 @@ func fcFormatCV(cv fcCV, allHits []fcSearchHit) string {
 			sb.WriteString("\n")
 			if p.Year.v != nil {
 				if p.Month.v != nil && *p.Month.v >= 1 && *p.Month.v <= 12 {
-					sb.WriteString(fmt.Sprintf("**Date:** %s %d\n", fcMonthNames[*p.Month.v], *p.Year.v))
+					fmt.Fprintf(&sb, "**Date:** %s %d\n", fcMonthNames[*p.Month.v], *p.Year.v)
 				} else {
-					sb.WriteString(fmt.Sprintf("**Year:** %d\n", *p.Year.v))
+					fmt.Fprintf(&sb, "**Year:** %d\n", *p.Year.v)
 				}
 			}
 			if long := p.LongDesc.String(); long != "" && long != desc {
@@ -680,7 +680,7 @@ func fcFormatCV(cv fcCV, allHits []fcSearchHit) string {
 				sb.WriteString(prog)
 			}
 			if c.Year.v != nil {
-				sb.WriteString(fmt.Sprintf(" (%d)", *c.Year.v))
+				fmt.Fprintf(&sb, " (%d)", *c.Year.v)
 			}
 			sb.WriteString("\n")
 		}
