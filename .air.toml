@@ -1,0 +1,14 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/server"
+  bin = "./tmp/server"
+  delay = 1000
+  exclude_dir = ["tmp", "bin", "k8s", "vendor"]
+  include_ext = ["go", "mod"]
+  kill_delay = "200ms"
+  env = ["HOST=127.0.0.1"]
+
+[log]
+  time = true
