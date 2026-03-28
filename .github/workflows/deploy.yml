@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment to deploy"
+        required: true
+        default: prod
+        type: choice
+        options:
+          - prod
+
+jobs:
+  deploy:
+    uses: varianter/shared-workflows/.github/workflows/build-and-deploy-shared.yaml@main
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment || 'prod' }}
+      acr-url: variantplatformacr.azurecr.io
+      image-name: mcp-internal
+      docker-context: .
+      dockerfile: ./Dockerfile
+      gitops-directory-path: deployments/${{ inputs.environment || 'prod' }}/workloads/mcp-internal
+      gitops-workload-name: mcp-internal
+      gitops-file-to-update: values.yaml
+      gitops-yq-path: .image.tag
+      gitops-continue-on-error: "true"
+      enable-gitops: "true"
