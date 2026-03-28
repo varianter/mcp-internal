@@ -62,3 +62,16 @@ func TestLoad_invalidPort(t *testing.T) {
 		t.Fatal("expected error for invalid PORT, got nil")
 	}
 }
+
+func TestLoad_portOutOfRange(t *testing.T) {
+	cases := []string{"0", "65536", "-1", "99999"}
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv("PORT", raw)
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("expected error for PORT=%s, got nil", raw)
+			}
+		})
+	}
+}
