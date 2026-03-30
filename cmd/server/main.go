@@ -37,7 +37,7 @@ func main() {
 	mcpServer := server.NewMCPServer("variant-internal-mcp", "0.1.0",
 		server.WithRecovery(),
 		server.WithLogging(),
-		server.WithInstructions("MCP for accessing internal tools for Variant. Getting employees, internal data, etc."),
+		server.WithInstructions("MCP for accessing internal tools for Variant. Getting employees, getting jokes, internal data, etc."),
 	)
 
 	randomJokeTool, randomJokeHandler := tools.NewRandomJokeTool()
