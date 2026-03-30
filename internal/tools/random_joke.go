@@ -1,4 +1,4 @@
-package resources
+package tools
 
 import (
 	"context"
@@ -35,30 +35,23 @@ var jokes = []string{
 	"Good design is invisible. So clients assume you did nothing.",
 }
 
-func ptr[T any](v T) *T { return &v }
-
-// NewRandomJokeResource returns a random IT, programming, or design joke.
-func NewRandomJokeResource() fxctx.Resource {
-	return fxctx.NewResource(
-		mcp.Resource{
+// NewRandomJokeTool returns a random IT, programming, or design joke.
+func NewRandomJokeTool() fxctx.Tool {
+	return fxctx.NewTool(
+		&mcp.Tool{
 			Name:        "random-joke",
-			Uri:         "variant-internal://random-joke",
-			MimeType:    ptr("text/plain"),
-			Description: ptr("A random IT, programming, or design joke to brighten your day"),
-			Annotations: &mcp.ResourceAnnotations{
-				Audience: []mcp.Role{mcp.RoleAssistant, mcp.RoleUser},
+			Description: ptr("Get a random IT, programming, or design joke to brighten your day"),
+			InputSchema: mcp.ToolInputSchema{
+				Type:       "object",
+				Properties: map[string]map[string]interface{}{},
 			},
 		},
-		func(_ context.Context, uri string) (*mcp.ReadResourceResult, error) {
-			return &mcp.ReadResourceResult{
-				Contents: []any{
-					mcp.TextResourceContents{
-						MimeType: ptr("text/plain"),
-						Text:     jokes[rand.Intn(len(jokes))],
-						Uri:      uri,
-					},
+		func(_ context.Context, _ map[string]interface{}) *mcp.CallToolResult {
+			return &mcp.CallToolResult{
+				Content: []interface{}{
+					mcp.TextContent{Type: "text", Text: jokes[rand.Intn(len(jokes))]},
 				},
-			}, nil
+			}
 		},
 	)
 }

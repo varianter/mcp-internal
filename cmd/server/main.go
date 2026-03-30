@@ -14,7 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/varianter/internal-mcp/internal/config"
-	"github.com/varianter/internal-mcp/internal/resources"
 	"github.com/varianter/internal-mcp/internal/secrets"
 	"github.com/varianter/internal-mcp/internal/tools"
 )
@@ -64,13 +63,12 @@ func main() {
 				})
 			}),
 		).
-		WithResource(resources.NewRandomJokeResource).
+		WithTool(tools.NewRandomJokeTool).
 		WithTool(tools.NewFlowcaseCVTool).
 		WithName("variant-internal-mcp").
 		WithVersion("0.1.0").
 		WithServerCapabilities(&mcp.ServerCapabilities{
-			Resources: &mcp.ServerCapabilitiesResources{},
-			Tools:     &mcp.ServerCapabilitiesTools{},
+			Tools: &mcp.ServerCapabilitiesTools{},
 		}).
 		WithTransport(
 			streamable_http.NewTransport(
