@@ -25,72 +25,51 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/strowk/foxy-contexts/pkg/fxctx"
-	"github.com/strowk/foxy-contexts/pkg/mcp"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/varianter/internal-mcp/internal/secrets"
 )
 
-func ptr[T any](v T) *T { return &v }
-
-func NewFlowcaseCVTool(loader *secrets.Loader) fxctx.Tool {
-	return fxctx.NewTool(
-		&mcp.Tool{
-			Name:        "get-cv-for-consultant",
-			Description: ptr("Fetch a consultant's full CV from FlowCase by name. Returns a structured Markdown summary of their profile, skills, work history, projects, education, certifications, and languages."),
-			InputSchema: mcp.ToolInputSchema{
-				Type: "object",
-				Properties: map[string]map[string]interface{}{
-					"query": {
-						"type":        "string",
-						"description": "Consultant's full name (e.g. 'Mikael Brevik')",
-					},
-				},
-				Required: []string{"query"},
-			},
-		},
-		func(ctx context.Context, args map[string]interface{}) *mcp.CallToolResult {
-			query, _ := args["query"].(string)
-			query = strings.TrimSpace(query)
-			if query == "" {
-				return fcToolError("query parameter is required")
-			}
-
-			slog.Info("flowcase-cv: tool called", "query", query)
-
-			apiKey, err := fcSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
-			if err != nil {
-				slog.Error("flowcase-cv: failed to load api key", "error", err)
-				return fcToolError(err.Error())
-			}
-			org, err := fcSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
-			if err != nil {
-				slog.Error("flowcase-cv: failed to load org", "error", err)
-				return fcToolError(err.Error())
-			}
-
-			slog.Info("flowcase-cv: fetching CV", "query", query, "org", org)
-			md, err := fcFetchCV(ctx, apiKey, org, query)
-			if err != nil {
-				slog.Error("flowcase-cv: fetch failed", "query", query, "error", err)
-				return fcToolError(err.Error())
-			}
-
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{Type: "text", Text: md},
-				},
-			}
-		},
+func NewFlowcaseCVTool(loader *secrets.Loader) (mcp.Tool, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)) {
+	tool := mcp.NewTool("get-cv-for-consultant",
+		mcp.WithDescription("Fetch a consultant's full CV from FlowCase by name. Returns a structured Markdown summary of their profile, skills, work history, projects, education, certifications, and languages."),
+		mcp.WithString("query",
+			mcp.Required(),
+			mcp.Description("Consultant's full name (e.g. 'Mikael Brevik')"),
+		),
 	)
+	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		query := strings.TrimSpace(req.GetString("query", ""))
+		if query == "" {
+			return fcToolError("query parameter is required"), nil
+		}
+
+		slog.Info("flowcase-cv: tool called", "query", query)
+
+		apiKey, err := fcSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
+		if err != nil {
+			slog.Error("flowcase-cv: failed to load api key", "error", err)
+			return fcToolError(err.Error()), nil
+		}
+		org, err := fcSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
+		if err != nil {
+			slog.Error("flowcase-cv: failed to load org", "error", err)
+			return fcToolError(err.Error()), nil
+		}
+
+		slog.Info("flowcase-cv: fetching CV", "query", query, "org", org)
+		md, err := fcFetchCV(ctx, apiKey, org, query)
+		if err != nil {
+			slog.Error("flowcase-cv: fetch failed", "query", query, "error", err)
+			return fcToolError(err.Error()), nil
+		}
+
+		return mcp.NewToolResultText(md), nil
+	}
+	return tool, handler
 }
 
 func fcToolError(msg string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []interface{}{
-			mcp.TextContent{Type: "text", Text: "Error: " + msg},
-		},
-		IsError: ptr(true),
-	}
+	return mcp.NewToolResultError("Error: " + msg)
 }
 
 // fcSecret checks the underscore env var first (local dev), then the

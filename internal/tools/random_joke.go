@@ -4,8 +4,7 @@ import (
 	"context"
 	"math/rand"
 
-	"github.com/strowk/foxy-contexts/pkg/fxctx"
-	"github.com/strowk/foxy-contexts/pkg/mcp"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 var jokes = []string{
@@ -36,22 +35,12 @@ var jokes = []string{
 }
 
 // NewRandomJokeTool returns a random IT, programming, or design joke.
-func NewRandomJokeTool() fxctx.Tool {
-	return fxctx.NewTool(
-		&mcp.Tool{
-			Name:        "random-joke",
-			Description: ptr("Get a random IT, programming, or design joke to brighten your day"),
-			InputSchema: mcp.ToolInputSchema{
-				Type:       "object",
-				Properties: map[string]map[string]interface{}{},
-			},
-		},
-		func(_ context.Context, _ map[string]interface{}) *mcp.CallToolResult {
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{Type: "text", Text: jokes[rand.Intn(len(jokes))]},
-				},
-			}
-		},
+func NewRandomJokeTool() (mcp.Tool, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)) {
+	tool := mcp.NewTool("random-joke",
+		mcp.WithDescription("Get a random IT, programming, or design joke to brighten your day"),
 	)
+	handler := func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return mcp.NewToolResultText(jokes[rand.Intn(len(jokes))]), nil
+	}
+	return tool, handler
 }

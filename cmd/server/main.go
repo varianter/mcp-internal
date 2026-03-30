@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/strowk/foxy-contexts/pkg/app"
-	"github.com/strowk/foxy-contexts/pkg/mcp"
-	"github.com/strowk/foxy-contexts/pkg/streamable_http"
-	"go.uber.org/fx"
+	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/varianter/internal-mcp/internal/config"
 	"github.com/varianter/internal-mcp/internal/secrets"
@@ -34,54 +34,49 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("starting server", "host", cfg.Host, "port", cfg.Port, "path", cfg.MCPPath)
+	mcpServer := server.NewMCPServer("variant-internal-mcp", "0.1.0",
+		server.WithRecovery(),
+		server.WithLogging(),
+		server.WithInstructions("MCP for accessing internal tools for Variant. Getting employees, internal data, etc.")
+	)
 
-	healthServer := &http.Server{
-		Addr: fmt.Sprintf(":%d", cfg.HealthPort),
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}),
+	randomJokeTool, randomJokeHandler := tools.NewRandomJokeTool()
+	mcpServer.AddTool(randomJokeTool, randomJokeHandler)
+
+	flowcaseTool, flowcaseHandler := tools.NewFlowcaseCVTool(secretLoader)
+	mcpServer.AddTool(flowcaseTool, flowcaseHandler)
+
+	streamableServer := server.NewStreamableHTTPServer(mcpServer,
+		server.WithSessionIdleTTL(10*time.Minute),
+	)
+
+	mux := http.NewServeMux()
+	mux.Handle(cfg.MCPPath, streamableServer)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	httpSrv := &http.Server{
+		Addr:    addr,
+		Handler: mux,
 	}
 
-	err = app.NewBuilder().
-		WithFxOptions(
-			fx.Provide(func() *secrets.Loader { return secretLoader }),
-			fx.Invoke(func(lc fx.Lifecycle) {
-				lc.Append(fx.Hook{
-					OnStart: func(ctx context.Context) error {
-						slog.Info("starting health server", "port", cfg.HealthPort)
-						go func() {
-							if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-								slog.Error("health server error", "error", err)
-							}
-						}()
-						return nil
-					},
-					OnStop: func(ctx context.Context) error {
-						return healthServer.Shutdown(ctx)
-					},
-				})
-			}),
-		).
-		WithTool(tools.NewRandomJokeTool).
-		WithTool(tools.NewFlowcaseCVTool).
-		WithName("variant-internal-mcp").
-		WithVersion("0.1.0").
-		WithServerCapabilities(&mcp.ServerCapabilities{
-			Tools: &mcp.ServerCapabilitiesTools{},
-		}).
-		WithTransport(
-			streamable_http.NewTransport(
-				streamable_http.Endpoint{
-					Hostname: cfg.Host,
-					Port:     cfg.Port,
-					Path:     cfg.MCPPath,
-				},
-			),
-		).
-		Run()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+	go func() {
+		<-quit
+		slog.Info("shutting down server")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(ctx)
+		_ = streamableServer.Shutdown(ctx)
+	}()
+
+	slog.Info("starting server", "addr", addr, "mcp", cfg.MCPPath, "health", "/health")
+
+	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server exited unexpectedly", "error", err)
 		os.Exit(1)
 	}

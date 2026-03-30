@@ -8,17 +8,17 @@ Operational reference for agents (Claude Code, Copilot, etc.) working in this re
 
 An MCP (Model Context Protocol) server that exposes Variant internal data — SharePoint, Graph, HR systems, etc. — as MCP resources and tools. Clients (Claude Desktop, Cursor, etc.) connect to it and can read company data in context.
 
-Built with [Foxy Contexts](https://foxy-contexts.str4.io/) (`github.com/strowk/foxy-contexts v0.1.0-beta.6`), deployed in AKS behind oauth2-proxy, using Azure Workload Identity for Graph/SharePoint access.
+Built with [mcp-go](https://mcp-go.dev/) (`github.com/mark3labs/mcp-go`), deployed in AKS behind oauth2-proxy, using Azure Workload Identity for Graph/SharePoint access.
 
 ---
 
 ## Project layout
 
 ```
-cmd/server/main.go            # Entry point — wire resources/tools/prompts here
+cmd/server/main.go            # Entry point — wire resources/tools here
 internal/config/config.go     # Env-var config loader
 internal/resources/           # One file per domain resource
-internal/tools/               # (not yet created) MCP tools go here
+internal/tools/               # One file per domain tool
 k8s/                          # Kubernetes manifests
 Dockerfile                    # Multi-stage, distroless/static:nonroot
 Makefile                      # Dev and build targets
@@ -28,97 +28,82 @@ Makefile                      # Dev and build targets
 
 ---
 
-## Adding a resource
+## Adding a tool
 
-1. Create `internal/resources/<domain>.go` with a constructor that returns `fxctx.Resource`:
+1. Create `internal/tools/<name>.go` with a constructor that returns the tool definition and its handler:
 
 ```go
-package resources
+package tools
 
 import (
     "context"
-    "github.com/strowk/foxy-contexts/pkg/fxctx"
-    "github.com/strowk/foxy-contexts/pkg/mcp"
+    "github.com/mark3labs/mcp-go/mcp"
 )
 
-func ptr[T any](v T) *T { return &v }
-
-func NewMyResource() fxctx.Resource {
-    return fxctx.NewResource(
-        mcp.Resource{
-            Name:        "my-resource",
-            Uri:         "variant-internal://my-resource",
-            MimeType:    ptr("application/json"),
-            Description: ptr("..."),
-            Annotations: &mcp.ResourceAnnotations{
-                Audience: []mcp.Role{mcp.RoleAssistant, mcp.RoleUser},
-            },
-        },
-        func(_ context.Context, uri string) (*mcp.ReadResourceResult, error) {
-            return &mcp.ReadResourceResult{
-                Contents: []interface{}{
-                    mcp.TextResourceContents{
-                        MimeType: ptr("application/json"),
-                        Text:     `{"key": "value"}`,
-                        Uri:      uri,
-                    },
-                },
-            }, nil
-        },
+func NewMyTool() (mcp.Tool, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)) {
+    tool := mcp.NewTool("my-tool",
+        mcp.WithDescription("Does something useful"),
+        mcp.WithString("param",
+            mcp.Required(),
+            mcp.Description("The input parameter"),
+        ),
     )
+    handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        param := req.GetString("param", "")
+        return mcp.NewToolResultText(param), nil
+    }
+    return tool, handler
 }
 ```
 
 2. Register it in `cmd/server/main.go`:
 
 ```go
-app.NewBuilder().
-    WithResource(resources.NewHelloWorldResource).
-    WithResource(resources.NewMyResource).   // add here
-    ...
+tool, handler := tools.NewMyTool()
+mcpServer.AddTool(tool, handler)
 ```
 
-The `ptr[T]` helper is redeclared in each file that needs it — this is intentional (each file is self-contained). Do not create a shared `utils` package for it.
+**Error handling:** Return tool-level errors with `mcp.NewToolResultError("message"), nil` — the `nil` Go error keeps the handler alive while surfacing the error to the LLM. Only return a non-nil Go error for unexpected panics/infrastructure failures.
+
+**Parameter extraction:**
+- `req.GetString("name", "default")` — optional string with fallback
+- `req.GetInt("count", 0)` — optional int
+- `req.GetBool("flag", false)` — optional bool
+- `req.RequireString("name")` — required; returns `(string, error)` if missing
 
 ---
 
-## Adding a tool
+## Adding a resource
 
-Create `internal/tools/<name>.go`:
+1. Create `internal/resources/<domain>.go`:
 
 ```go
-func NewMyTool() fxctx.Tool {
-    return fxctx.NewTool(
-        &mcp.Tool{
-            Name:        "my-tool",
-            Description: ptr("..."),
-            InputSchema: mcp.ToolInputSchema{
-                Type:       "object",
-                Properties: map[string]map[string]interface{}{
-                    "param": {"type": "string", "description": "..."},
-                },
-                Required: []string{"param"},
-            },
-        },
-        func(args map[string]interface{}) *mcp.CallToolResult {
-            param := args["param"].(string)
-            return &mcp.CallToolResult{
-                Content: []interface{}{
-                    mcp.TextContent{Type: "text", Text: param},
-                },
-            }
-        },
+package resources
+
+import (
+    "context"
+    "github.com/mark3labs/mcp-go/mcp"
+    "github.com/mark3labs/mcp-go/server"
+)
+
+func NewMyResource() (mcp.Resource, func(context.Context, mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error)) {
+    resource := mcp.NewResource("variant-internal://my-resource", "My Resource",
+        mcp.WithResourceDescription("..."),
+        mcp.WithMIMEType("application/json"),
     )
+    handler := func(_ context.Context, req mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+        return mcp.NewReadResourceResultFromText(`{"key": "value"}`), nil
+    }
+    return resource, handler
 }
 ```
 
-Register with `.WithTool(tools.NewMyTool)` in `main.go`.
+2. Register it in `cmd/server/main.go`:
 
----
-
-## Adding a dynamic resource provider
-
-Use `fxctx.NewResourceProvider` when the list of resources is data-driven (e.g. one resource per SharePoint site). Register with `.WithResourceProvider(...)`.
+```go
+resource, handler := resources.NewMyResource()
+mcpServer.AddResource(resource, handler)
+```
 
 ---
 
@@ -130,8 +115,7 @@ All config comes from environment variables. See `internal/config/config.go`.
 |---|---|---|
 | `HOST` | `0.0.0.0` | Use `127.0.0.1` locally — **must** be `0.0.0.0` in AKS |
 | `PORT` | `8080` | |
-| `MCP_PATH` | `/mcp` | |
-| `HEALTH_PORT` | `8081` | Liveness/readiness probe port — responds 200 OK to any request |
+| `MCP_PATH` | `/mcp` | HTTP endpoint path for MCP |
 | `AZURE_TENANT_ID` | — | Set in `k8s/configmap.yaml` |
 | `AZURE_CLIENT_ID` | — | Injected automatically by AKS Workload Identity webhook |
 | `AZURE_FEDERATED_TOKEN_FILE` | — | Injected automatically by AKS Workload Identity webhook |
@@ -165,11 +149,14 @@ annotations:
 
 ## Transport
 
-Uses `pkg/streamable_http` (Foxy Contexts v0.1.0-beta.6). This is an HTTP transport built on Echo — not stdio. The MCP endpoint is at `POST /mcp`. GET to `/mcp` returns 405 (correct behaviour).
+Uses `server.NewStreamableHTTPServer` from mcp-go — not stdio. Both endpoints are on the same port:
 
-oauth2-proxy sits in front in AKS. Ensure it does not strip `Mcp-Session-Id` headers, which the transport uses to maintain session state across requests.
+- `POST /mcp` (configurable via `MCP_PATH`) — MCP endpoint
+- `GET /health` — liveness/readiness probe; returns `200 OK`
 
-A dedicated health server runs on port `8081` (configurable via `HEALTH_PORT`). It responds `200 OK` to any request. AKS liveness/readiness probes should target this port.
+oauth2-proxy sits in front in AKS. Ensure it does not strip `Mcp-Session-Id` headers, which the transport uses to maintain session state across requests. AKS liveness/readiness probes should target port 8080 at `/health`.
+
+**Note:** The mcp-go docs claim `GET /mcp/health` is auto-created — it is not. Health is a plain `http.ServeMux` handler added alongside the MCP handler in `main.go`.
 
 ---
 
@@ -202,9 +189,13 @@ The Dockerfile uses `gcr.io/distroless/static:nonroot` (uid 65532, no shell). Th
 
 ---
 
-## Foxy Contexts internals (things that bite)
+## mcp-go internals (things to know)
 
-- **Dependency injection**: The library uses Uber `fx`. Resource/tool/prompt constructors are passed as function references (not called instances) to `.WithResource()` etc. `fx` calls them and resolves dependencies. If a constructor needs config, add it as a parameter and provide `*Config` via `.WithFxOptions(fx.Provide(...))`.
-- **`fx` logging**: The library logs all DI wiring at startup to stdout. This is normal.
-- **Beta version**: `v0.1.0-beta.6` is intentional — it's the only release with `pkg/streamable_http`. Monitor the repo for a stable release.
-- **Health server**: A separate `net/http` server on port `8081` handles liveness/readiness probes. It runs as an `fx.Hook` alongside the main app lifecycle. The foxy-contexts Echo instance is private, so health checks cannot be added to port 8080.
+- **No DI framework**: mcp-go has no dependency injection. Tool/resource constructors are plain functions. Pass dependencies (e.g. `*secrets.Loader`) as constructor arguments; call the constructor directly in `main.go`.
+- **Tool constructors return two values**: `(mcp.Tool, handlerFunc)`. Register both with `mcpServer.AddTool(tool, handler)`.
+- **Error model**: Tool errors go in `mcp.NewToolResultError(msg)` returned with `nil` Go error. The LLM sees the error message. A non-nil Go error from a handler is a protocol-level failure.
+- **Server options**: Use `server.WithRecovery()` to prevent panics from crashing the server. Use `server.WithLogging()` to enable built-in request logging.
+- **Endpoint path**: Configured via `server.WithEndpointPath(path)` on `NewStreamableHTTPServer`.
+- **Session TTL**: `server.WithSessionIdleTTL(10*time.Minute)` prevents memory leaks from clients that disconnect without sending a DELETE request. The sweeper runs in the background.
+- **Graceful shutdown**: Call both `httpSrv.Shutdown(ctx)` (stops accepting connections) and `streamableServer.Shutdown(ctx)` (cleans up MCP sessions).
+- **Health endpoint**: The mcp-go docs list `GET /mcp/health` as auto-created — it is not. Add it manually to the `http.ServeMux` in `main.go`.

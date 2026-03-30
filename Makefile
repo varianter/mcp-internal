@@ -21,7 +21,7 @@ dev: ## Hot-reload with Air (go install github.com/air-verse/air@latest)
 
 .PHONY: inspect
 inspect: ## Open MCP Inspector (server must already be running)
-	npx @modelcontextprotocol/inspector --url http://localhost:8080/mcp
+	npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:8080/mcp
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 .PHONY: build
