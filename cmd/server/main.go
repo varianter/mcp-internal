@@ -46,6 +46,9 @@ func main() {
 	flowcaseTool, flowcaseHandler := tools.NewFlowcaseCVTool(secretLoader)
 	mcpServer.AddTool(flowcaseTool, flowcaseHandler)
 
+	flowcaseSearchTool, flowcaseSearchHandler := tools.NewFlowcaseSearchTool(secretLoader)
+	mcpServer.AddTool(flowcaseSearchTool, flowcaseSearchHandler)
+
 	streamableServer := server.NewStreamableHTTPServer(mcpServer,
 		server.WithSessionIdleTTL(10*time.Minute),
 	)
