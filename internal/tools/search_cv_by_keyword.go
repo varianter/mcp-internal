@@ -29,7 +29,7 @@ func NewFlowcaseSearchTool(loader *secrets.Loader) (mcp.Tool, func(context.Conte
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		raw := strings.TrimSpace(req.GetString("keywords", ""))
 		if raw == "" {
-			return toolError("keywords parameter is required"), nil
+			return mcp.NewToolResultError("Error: keywords parameter is required"), nil
 		}
 
 		var keywords []string
@@ -40,26 +40,26 @@ func NewFlowcaseSearchTool(loader *secrets.Loader) (mcp.Tool, func(context.Conte
 			}
 		}
 		if len(keywords) == 0 {
-			return toolError("at least one keyword is required"), nil
+			return mcp.NewToolResultError("Error: at least one keyword is required"), nil
 		}
 
 		slog.Info("flowcase-search: tool called", "keywords", keywords)
 
-		apiKey, err := fcSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
+		apiKey, err := flowcase.LoadSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
 		if err != nil {
 			slog.Error("flowcase-search: failed to load api key", "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
-		org, err := fcSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
+		org, err := flowcase.LoadSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
 		if err != nil {
 			slog.Error("flowcase-search: failed to load org", "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
 
 		ranked, err := searchByKeywords(ctx, flowcase.BaseURL(org), flowcase.AuthHeader(apiKey), keywords)
 		if err != nil {
 			slog.Error("flowcase-search: search failed", "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
 
 		return mcp.NewToolResultText(formatSearchResults(ranked, keywords)), nil

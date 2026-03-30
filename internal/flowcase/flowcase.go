@@ -11,10 +11,27 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
+
+	"github.com/varianter/internal-mcp/internal/secrets"
 )
 
 // ── HTTP client ────────────────────────────────────────────────────────────────
+
+// LoadSecret resolves a secret by checking the env var first (local dev), then
+// falling back to Key Vault. Key Vault does not allow underscores in names,
+// hence the two separate name parameters.
+func LoadSecret(ctx context.Context, loader *secrets.Loader, envName, kvName string) (string, error) {
+	if v := os.Getenv(envName); v != "" {
+		return v, nil
+	}
+	v, err := loader.Get(ctx, kvName)
+	if err != nil {
+		return "", fmt.Errorf("secret %s / Key Vault %s: %w", envName, kvName, err)
+	}
+	return v, nil
+}
 
 // BaseURL returns the FlowCase API base URL for the given organisation slug.
 func BaseURL(org string) string {

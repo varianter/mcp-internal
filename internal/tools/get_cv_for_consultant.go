@@ -39,27 +39,27 @@ func NewFlowcaseCVTool(loader *secrets.Loader) (mcp.Tool, func(context.Context, 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		query := strings.TrimSpace(req.GetString("query", ""))
 		if query == "" {
-			return toolError("query parameter is required"), nil
+			return mcp.NewToolResultError("Error: query parameter is required"), nil
 		}
 
 		slog.Info("flowcase-cv: tool called", "query", query)
 
-		apiKey, err := fcSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
+		apiKey, err := flowcase.LoadSecret(ctx, loader, "FLOWCASE_API_KEY", "flowcase-api-key")
 		if err != nil {
 			slog.Error("flowcase-cv: failed to load api key", "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
-		org, err := fcSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
+		org, err := flowcase.LoadSecret(ctx, loader, "FLOWCASE_ORG", "flowcase-org")
 		if err != nil {
 			slog.Error("flowcase-cv: failed to load org", "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
 
 		slog.Info("flowcase-cv: fetching CV", "query", query, "org", org)
 		md, err := fetchCV(ctx, apiKey, org, query)
 		if err != nil {
 			slog.Error("flowcase-cv: fetch failed", "query", query, "error", err)
-			return toolError(err.Error()), nil
+			return mcp.NewToolResultError("Error: " + err.Error()), nil
 		}
 
 		return mcp.NewToolResultText(md), nil
