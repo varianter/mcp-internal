@@ -49,6 +49,12 @@ func main() {
 	flowcaseSearchTool, flowcaseSearchHandler := tools.NewFlowcaseSearchTool(secretLoader)
 	mcpServer.AddTool(flowcaseSearchTool, flowcaseSearchHandler)
 
+	githubExistsTool, githubExistsHandler := tools.NewGithubAppExistsTool(secretLoader)
+	mcpServer.AddTool(githubExistsTool, githubExistsHandler)
+
+	githubDeployTool, githubDeployHandler := tools.NewGithubDeployAppTool(secretLoader)
+	mcpServer.AddTool(githubDeployTool, githubDeployHandler)
+
 	streamableServer := server.NewStreamableHTTPServer(mcpServer,
 		server.WithSessionIdleTTL(10*time.Minute),
 	)
