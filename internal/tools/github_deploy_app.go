@@ -10,6 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/varianter/internal-mcp/internal/flowcase"
 	"github.com/varianter/internal-mcp/internal/github"
+	"github.com/varianter/internal-mcp/internal/secretscanner"
 	"github.com/varianter/internal-mcp/internal/secrets"
 )
 
@@ -87,6 +88,18 @@ Example: [{"path":"index.html","content":"<html>...</html>"},{"path":"src/App.js
 			}
 			if strings.HasPrefix(f.Path, "/") || strings.Contains(f.Path, "..") {
 				return mcp.NewToolResultError(fmt.Sprintf("invalid file path %q: must not start with '/' or contain '..'", f.Path)), nil
+			}
+		}
+
+		// Scan all files for hardcoded secrets before deploying to the public repo.
+		if repoTarget == "public" {
+			scanFiles := make([]secretscanner.File, len(entries))
+			for i, e := range entries {
+				scanFiles[i] = secretscanner.File{Path: e.Path, Content: e.Content}
+			}
+			if findings := secretscanner.Scan(scanFiles); len(findings) > 0 {
+				slog.Warn("github-deploy-app: secrets detected, aborting", "app", appName, "repo", repoTarget, "findings", len(findings))
+				return mcp.NewToolResultError(secretscanner.ErrorMessage(findings)), nil
 			}
 		}
 
