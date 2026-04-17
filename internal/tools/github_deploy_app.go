@@ -10,8 +10,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/varianter/internal-mcp/internal/flowcase"
 	"github.com/varianter/internal-mcp/internal/github"
-	"github.com/varianter/internal-mcp/internal/secretscanner"
 	"github.com/varianter/internal-mcp/internal/secrets"
+	"github.com/varianter/internal-mcp/internal/secretscanner"
 )
 
 // NewGithubDeployAppTool deploys one or more files to apps/<app_name>/ in a
@@ -42,10 +42,10 @@ Paths are relative to apps/<app_name>/ with no leading slash. Content is plain U
 Example: [{"path":"index.html","content":"<html>...</html>"},{"path":"src/App.jsx","content":"..."}]`),
 		),
 		mcp.WithString("author_name",
-			mcp.Description(`Full name of the person deploying the app (e.g. "Mikael Brevik"). Used as the Git commit author. If omitted, the token owner's identity is used.`),
+			mcp.Description(`Full name of the person deploying the app (e.g. "Mikael Brevik"). Used as the Git commit author. Defaults to "Variant Bot" if omitted.`),
 		),
 		mcp.WithString("author_email",
-			mcp.Description(`Email of the person deploying the app (e.g. "mikael@variant.no"). Used as the Git commit author. Required if author_name is provided.`),
+			mcp.Description(`Email of the person deploying the app (e.g. "mb@variant.no"). Used as the Git commit author. Defaults to "no-one@variant.no" if omitted.`),
 		),
 	)
 
@@ -55,6 +55,13 @@ Example: [{"path":"index.html","content":"<html>...</html>"},{"path":"src/App.js
 		filesJSON := strings.TrimSpace(req.GetString("files", ""))
 		authorName := strings.TrimSpace(req.GetString("author_name", ""))
 		authorEmail := strings.TrimSpace(req.GetString("author_email", ""))
+
+		if authorName == "" {
+			authorName = "Variant Bot"
+		}
+		if authorEmail == "" {
+			authorEmail = "no-one@variant.no"
+		}
 
 		// Validate app_name
 		if appName == "" {
