@@ -1,5 +1,10 @@
 # internal-mcp
 
+> [!IMPORTANT]  
+> Archived and replaced with https://github.com/varianter/mcp-internal-ts
+> It is ported to typescript to use a more mature and fully featured MCP implementation
+
+
 MCP server exposing Variant internal data via the [Model Context Protocol](https://modelcontextprotocol.io). Built with [mcp-go](https://mcp-go.dev/).
 
 Deployed in AKS behind oauth2-proxy, using Azure Workload Identity (managed identity) for Azure/Graph access.
